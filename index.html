@@ -384,13 +384,15 @@
                 }
             }
             
+            // Fix: Loading screen hata kar proper login screen dikhane ka sahi command
             document.getElementById('loadingOverlay').style.display = 'none';
-            if(!sessionActive && document.getElementById('mainApp').style.display === 'none') {
-                document.getElementById('loginScreen').style.display = 'block';
+            if (!sessionActive) {
+                showLoginScreen();
             }
+            
         }, (error) => {
             console.error("Firebase Connection Error: ", error);
-            document.getElementById('loadingOverlay').innerHTML = `<h3 style='color:red;'>Database Connection Failed!</h3><p>Please check Firebase rules.</p>`;
+            document.getElementById('loadingOverlay').innerHTML = `<h3 style='color:red;'>Database Connection Failed!</h3><p>Please check Firebase rules.</p><button onclick="window.location.reload()" style="padding:10px; margin-top:10px; cursor:pointer;">Retry</button>`;
         });
 
         function writeDB(key, arr) {
