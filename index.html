@@ -384,17 +384,19 @@
                 }
             }
             
-            // Hide loading screen, show login screen if not logged in
             document.getElementById('loadingOverlay').style.display = 'none';
             if(!sessionActive && document.getElementById('mainApp').style.display === 'none') {
                 document.getElementById('loginScreen').style.display = 'block';
             }
+        }, (error) => {
+            console.error("Firebase Connection Error: ", error);
+            document.getElementById('loadingOverlay').innerHTML = `<h3 style='color:red;'>Database Connection Failed!</h3><p>Please check Firebase rules.</p>`;
         });
 
         function writeDB(key, arr) {
             if (!Array.isArray(arr)) arr = []; 
             window.memDB[key] = arr;
-            db.ref('sdCafeData/' + key).set(arr); // Push live to internet
+            db.ref('sdCafeData/' + key).set(arr);
         }
 
         function readDB(key) {
@@ -402,7 +404,7 @@
             return window.memDB[key];
         }
 
-        let currentPassword = "sdakhta0786";
+        let currentPassword = "1234";
         let sessionActive = false;
         let currentUserRole = "";
         let currentLoggedUser = "";
@@ -556,7 +558,7 @@
                     let base64 = canvas.toDataURL('image/jpeg', 0.8); 
                     
                     let storageKey = prefix === 'savedShopLogo' ? 'savedShopLogo_global' : 'savedShopSig_admin';
-                    db.ref('sdCafeData/images/' + storageKey).set(base64); // Send directly to cloud
+                    db.ref('sdCafeData/images/' + storageKey).set(base64); 
                 };
                 img.src = e.target.result;
             };
