@@ -3,10 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SD Internet Cafe - Bill System</title>
+    <title>SD Internet Cafe - Bill System (Cloud Sync)</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e9ecef; padding: 20px; padding-bottom: 80px; user-select: none; }
         input { user-select: auto; }
+
+        #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { border: 5px solid #f3f3f3; border-top: 5px solid #007bff; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         /* Login & Register Styles */
         .auth-container { background: #fff; max-width: 400px; margin: 50px auto; padding: 30px; border-radius: 10px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-top: 5px solid #007bff; }
@@ -15,7 +21,6 @@
         .auth-container button { padding: 10px 25px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 10px; transition: 0.3s; }
         .auth-container button:hover { background-color: #0056b3; }
         .link-btn { background: none; border: none; color: #007bff; text-decoration: underline; cursor: pointer; margin-top: 15px; font-size: 14px; display: inline-block; }
-        .login-hints { font-size: 12px; color: #6c757d; margin-top: 15px; text-align: left; background: #f8f9fa; padding: 10px; border-radius: 5px; }
         
         /* Dashboard & Screens Styles */
         .dashboard-container { background: #fff; max-width: 1100px; margin: 30px auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-top: 5px solid #28a745; display: none; }
@@ -82,11 +87,9 @@
 
         .bill-footer { text-align: center; margin-top: 30px; font-size: 16px; font-weight: bold; border-top: 1px dashed #ced4da; padding-top: 15px; color: #007bff; }
 
-        /* Search Bar Style */
         .search-box { padding: 10px; border: 1px solid #ced4da; border-radius: 5px; outline: none; transition: 0.3s; font-size: 14px; }
         .search-box:focus { border-color: #28a745; box-shadow: 0 0 5px rgba(40, 167, 69, 0.3); }
 
-        /* Role based hides */
         body.user-mode .admin-only { display: none !important; }
 
         @media print {
@@ -96,14 +99,18 @@
             .customer-details { border-left: none; padding: 0; background: transparent; border-bottom: 1px solid #ccc; border-radius: 0; padding-bottom: 10px; }
             th { background-color: #f8f9fa !important; color: black !important; border-bottom: 2px solid #000; -webkit-print-color-adjust: exact; }
             .grand-total-row { background-color: #eee !important; color: #000 !important; }
-            /* Hide broken images if no logo/sig is uploaded */
             img[src=""], img:not([src]) { display: none !important; }
         }
     </style>
 </head>
 <body class="admin-mode">
 
-    <div id="loginScreen" class="auth-container">
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <h3 style="color:#007bff; margin-top:20px;">Connecting to SD Cafe Live Database...</h3>
+    </div>
+
+    <div id="loginScreen" class="auth-container" style="display:none;">
         <h2 style="color: #007bff;">Software Login</h2>
         <input type="text" id="loginUser" placeholder="Username (Admin ya Staff ID)">
         <input type="password" id="loginPass" placeholder="Password">
@@ -148,30 +155,12 @@
         </div>
         
         <div class="dashboard-cards">
-            <div class="card">
-                <h3 id="cardTitle1">Total Bills</h3>
-                <p id="dashTotalBills" class="text-primary">0</p>
-            </div>
-            <div class="card">
-                <h3 id="cardTitle2">Total Sales</h3>
-                <p id="dashTotalEarnings" class="text-success">₹0.00</p>
-            </div>
-            <div class="card">
-                <h3 id="cardTitle3">Total Dues</h3>
-                <p id="dashTotalDues" class="text-danger">₹0.00</p>
-            </div>
-            <div class="card">
-                <h3>Today's Bills</h3>
-                <p id="dashTodayBills" class="text-primary">0</p>
-            </div>
-            <div class="card">
-                <h3>Today's Sales</h3>
-                <p id="dashTodayEarnings" class="text-success">₹0.00</p>
-            </div>
-            <div class="card">
-                <h3>Today's Dues</h3>
-                <p id="dashTodayDues" class="text-danger">₹0.00</p>
-            </div>
+            <div class="card"><h3 id="cardTitle1">Total Bills</h3><p id="dashTotalBills" class="text-primary">0</p></div>
+            <div class="card"><h3 id="cardTitle2">Total Sales</h3><p id="dashTotalEarnings" class="text-success">₹0.00</p></div>
+            <div class="card"><h3 id="cardTitle3">Total Dues</h3><p id="dashTotalDues" class="text-danger">₹0.00</p></div>
+            <div class="card"><h3>Today's Bills</h3><p id="dashTodayBills" class="text-primary">0</p></div>
+            <div class="card"><h3>Today's Sales</h3><p id="dashTodayEarnings" class="text-success">₹0.00</p></div>
+            <div class="card"><h3>Today's Dues</h3><p id="dashTodayDues" class="text-danger">₹0.00</p></div>
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
@@ -180,19 +169,8 @@
         </div>
 
         <table class="history-table">
-            <thead>
-                <tr>
-                    <th>Invoice No</th>
-                    <th>Date</th>
-                    <th>Customer Name</th>
-                    <th>Total Amount</th>
-                    <th>Status (Dues)</th> 
-                    <th>Billed By</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="historyTableBody">
-            </tbody>
+            <thead><tr><th>Invoice No</th><th>Date</th><th>Customer Name</th><th>Total Amount</th><th>Status (Dues)</th><th>Billed By</th><th>Action</th></tr></thead>
+            <tbody id="historyTableBody"></tbody>
         </table>
         
         <div style="display: flex; justify-content: center; gap: 20px; margin-top: 25px;">
@@ -210,17 +188,10 @@
             </div>
         </div>
 
-        <h3 style="color: #ffc107; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 20px;">Pending Approvals (Naye Registration)</h3>
+        <h3 style="color: #ffc107; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 20px;">Pending Approvals</h3>
         <table class="history-table" style="margin-bottom: 30px;">
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Password</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="pendingStaffTableBody">
-            </tbody>
+            <thead><tr><th>Username</th><th>Password</th><th>Action</th></tr></thead>
+            <tbody id="pendingStaffTableBody"></tbody>
         </table>
 
         <div class="input-section" style="background: #f8f9fa;">
@@ -233,18 +204,9 @@
         </div>
 
         <h3 style="color: #343a40; border-bottom: 2px solid #eee; padding-bottom: 10px;">Approved Staff List</h3>
-        <p style="font-size: 13px; color: #dc3545; font-weight: bold;">Note: Staff ko delete karne par unke banaye gaye Bills History mein hamesha safe rahenge.</p>
         <table class="history-table">
-            <thead>
-                <tr>
-                    <th>S.No.</th>
-                    <th>Username</th>
-                    <th>Password</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="staffTableBody">
-            </tbody>
+            <thead><tr><th>S.No.</th><th>Username</th><th>Password</th><th>Action</th></tr></thead>
+            <tbody id="staffTableBody"></tbody>
         </table>
     </div>
 
@@ -256,24 +218,11 @@
                 <button class="nav-btn" style="background: #dc3545;" onclick="logout()">🔒 Logout</button>
             </div>
         </div>
-
         <p style="color: #dc3545; font-size: 14px;">Jo bill yahan se permanent delete honge, unhe wapas nahi laya ja sakega.</p>
-
         <table class="history-table">
-            <thead>
-                <tr>
-                    <th>Invoice No</th>
-                    <th>Date</th>
-                    <th>Customer Name</th>
-                    <th>Total Amount</th>
-                    <th>Billed By</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="recycleTableBody">
-            </tbody>
+            <thead><tr><th>Invoice No</th><th>Date</th><th>Customer Name</th><th>Total Amount</th><th>Billed By</th><th>Action</th></tr></thead>
+            <tbody id="recycleTableBody"></tbody>
         </table>
-
         <div style="display: flex; justify-content: center; margin-top: 25px;">
             <button class="delete-btn" style="background-color: #dc3545; font-size: 16px; padding: 10px 20px;" onclick="emptyRecycleBin()">⚠️ Empty Recycle Bin</button>
         </div>
@@ -341,10 +290,8 @@
                     <input type="number" id="discountInput" placeholder="Discount (₹) (Optional)" onkeyup="updateTotals()">
                     <input type="number" id="paidAmountInput" placeholder="Received Cash (₹) (Kitne Jama Kiye?)" onkeyup="updateTotals()">
                 </div>
-
                 <button onclick="addItem()">Add to Bill</button>
             </div>
-
             <button class="floating-print-btn" onclick="saveAndPrintBill()">💾 Save & Print Bill</button>
         </div>
 
@@ -370,44 +317,15 @@
 
             <table>
                 <thead>
-                    <tr>
-                        <th style="width: 5%;">S.No.</th>
-                        <th style="width: 28%;">Service Description</th>
-                        <th style="width: 15%;">Type</th> 
-                        <th style="width: 12%;">Orig. Price (₹)</th>
-                        <th style="width: 13%;">Cafe Charge (₹)</th>
-                        <th style="width: 15%;">Total (₹)</th>
-                        <th class="no-print" id="actionColumn" style="width: 12%;">Action</th> 
-                    </tr>
+                    <tr><th style="width: 5%;">S.No.</th><th style="width: 28%;">Service Description</th><th style="width: 15%;">Type</th><th style="width: 12%;">Orig. Price (₹)</th><th style="width: 13%;">Cafe Charge (₹)</th><th style="width: 15%;">Total (₹)</th><th class="no-print" id="actionColumn" style="width: 12%;">Action</th></tr>
                 </thead>
                 <tbody id="itemList"></tbody>
-                
                 <tfoot>
-                    <tr class="total-row">
-                        <td colspan="5" style="text-align: right;">Sub Total:</td>
-                        <td id="subTotalAmount">₹0.00</td>
-                        <td class="no-print"></td>
-                    </tr>
-                    <tr class="discount-row">
-                        <td colspan="5" style="text-align: right;">Discount:</td>
-                        <td id="discountAmount">- ₹0.00</td>
-                        <td class="no-print"></td>
-                    </tr>
-                    <tr class="grand-total-row">
-                        <td colspan="5" style="text-align: right;">Grand Total:</td>
-                        <td id="grandTotalAmount">₹0.00</td>
-                        <td class="no-print"></td>
-                    </tr>
-                    <tr class="paid-row">
-                        <td colspan="5" style="text-align: right;">Paid Amount (Received):</td>
-                        <td id="paidAmountDisplay">₹0.00</td>
-                        <td class="no-print"></td>
-                    </tr>
-                    <tr class="due-row" id="dueRowElement" style="color: #dc3545;">
-                        <td colspan="5" style="text-align: right;" id="dueOrChangeText">Due Balance (Pending):</td>
-                        <td id="dueAmountDisplay">₹0.00</td>
-                        <td class="no-print"></td>
-                    </tr>
+                    <tr class="total-row"><td colspan="5" style="text-align: right;">Sub Total:</td><td id="subTotalAmount">₹0.00</td><td class="no-print"></td></tr>
+                    <tr class="discount-row"><td colspan="5" style="text-align: right;">Discount:</td><td id="discountAmount">- ₹0.00</td><td class="no-print"></td></tr>
+                    <tr class="grand-total-row"><td colspan="5" style="text-align: right;">Grand Total:</td><td id="grandTotalAmount">₹0.00</td><td class="no-print"></td></tr>
+                    <tr class="paid-row"><td colspan="5" style="text-align: right;">Paid Amount (Received):</td><td id="paidAmountDisplay">₹0.00</td><td class="no-print"></td></tr>
+                    <tr class="due-row" id="dueRowElement" style="color: #dc3545;"><td colspan="5" style="text-align: right;" id="dueOrChangeText">Due Balance (Pending):</td><td id="dueAmountDisplay">₹0.00</td><td class="no-print"></td></tr>
                 </tfoot>
             </table>
 
@@ -426,25 +344,62 @@
     </div>
 
     <script>
-        // --- SAFE MEMORY VARIABLES ---
+        // ==========================================
+        // YAHAN AAPKA FIREBASE CONFIG LAGA DIYA GAYA HAI
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyBhQh9Kdvd6qriVQr052UBmcileaA6TVFg",
+            authDomain: "sd-cafe-billing.firebaseapp.com",
+            databaseURL: "https://sd-cafe-billing-default-rtdb.firebaseio.com",
+            projectId: "sd-cafe-billing",
+            storageBucket: "sd-cafe-billing.firebasestorage.app",
+            messagingSenderId: "733925421678",
+            appId: "1:733925421678:web:dceafb17a8c33422e56c7f"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        // ==========================================
+
         window.memDB = { billHistory: [], recycleBinHistory: [], cafeStaffList: [], cafePendingStaff: [] };
 
-        function readDB(key) {
-            try {
-                let raw = localStorage.getItem(key);
-                if (raw) {
-                    let parsed = JSON.parse(raw);
-                    if (Array.isArray(parsed)) { window.memDB[key] = parsed; return parsed; }
+        // FIREBASE LIVE DATA SYNC
+        db.ref('sdCafeData').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if(data) {
+                if(data.billHistory) window.memDB.billHistory = data.billHistory; else window.memDB.billHistory = [];
+                if(data.recycleBinHistory) window.memDB.recycleBinHistory = data.recycleBinHistory; else window.memDB.recycleBinHistory = [];
+                if(data.cafeStaffList) window.memDB.cafeStaffList = data.cafeStaffList; else window.memDB.cafeStaffList = [];
+                if(data.cafePendingStaff) window.memDB.cafePendingStaff = data.cafePendingStaff; else window.memDB.cafePendingStaff = [];
+                
+                if(data.images) {
+                    if(data.images.savedShopLogo_global) { document.getElementById('displayLogo').src = data.images.savedShopLogo_global; document.getElementById('displayLogo').style.display = 'block'; }
+                    if(data.images.savedShopSig_admin) { document.getElementById('displaySignature').src = data.images.savedShopSig_admin; document.getElementById('displaySignature').style.display = 'block'; }
                 }
-            } catch(e) {}
-            if (!Array.isArray(window.memDB[key])) window.memDB[key] = [];
-            return window.memDB[key];
-        }
+                
+                if (sessionActive) {
+                    if(window.location.hash === "#dashboard") renderDashboard();
+                    else if(window.location.hash === "#staff") renderStaffManager();
+                    else if(window.location.hash === "#recycle") renderRecycleBin();
+                }
+            }
+            
+            // Hide loading screen, show login screen if not logged in
+            document.getElementById('loadingOverlay').style.display = 'none';
+            if(!sessionActive && document.getElementById('mainApp').style.display === 'none') {
+                document.getElementById('loginScreen').style.display = 'block';
+            }
+        });
 
         function writeDB(key, arr) {
             if (!Array.isArray(arr)) arr = []; 
             window.memDB[key] = arr;
-            try { localStorage.setItem(key, JSON.stringify(arr)); } catch(e) {}
+            db.ref('sdCafeData/' + key).set(arr); // Push live to internet
+        }
+
+        function readDB(key) {
+            if (!Array.isArray(window.memDB[key])) window.memDB[key] = [];
+            return window.memDB[key];
         }
 
         let currentPassword = "sdakhta0786";
@@ -455,7 +410,6 @@
 
         try { if(localStorage.getItem("adminPass")) currentPassword = localStorage.getItem("adminPass"); } catch(e) {}
 
-        // --- LIVE CLOCK ---
         setInterval(() => {
             try {
                 let now = new Date();
@@ -463,25 +417,16 @@
             } catch(e) {}
         }, 1000);
 
-        // --- INIT & ROUTING ---
         window.onload = function() {
             if(sessionStorage.getItem("isLoggedIn") === "true") {
                 sessionActive = true;
                 currentUserRole = sessionStorage.getItem("userRole") || "admin";
                 currentLoggedUser = sessionStorage.getItem("loggedUser") || "admin";
-                
                 hideAllScreens();
                 applyRoleRestrictions();
                 setNewInvoiceDetails();
-                restoreSavedImages();
-                
-                if(!window.location.hash || window.location.hash === "") {
-                    window.location.hash = "billing";
-                } else {
-                    handleRouting();
-                }
-            } else {
-                showLoginScreen();
+                if(!window.location.hash || window.location.hash === "") window.location.hash = "billing";
+                else handleRouting();
             }
         };
 
@@ -490,12 +435,7 @@
         function handleRouting() {
             if(!sessionActive) return;
             let hash = window.location.hash;
-
-            if(currentUserRole === "user" && (hash === "#staff" || hash === "#recycle")) {
-                window.location.hash = "dashboard";
-                return;
-            }
-
+            if(currentUserRole === "user" && (hash === "#staff" || hash === "#recycle")) { window.location.hash = "dashboard"; return; }
             if(hash === "#dashboard") renderDashboard();
             else if(hash === "#recycle") renderRecycleBin();
             else if(hash === "#staff") renderStaffManager();
@@ -510,182 +450,82 @@
         function goPreview(id) { window.location.hash = "preview-" + id; renderPreview(id); }
 
         function hideAllScreens() {
-            document.getElementById('loginScreen').style.display = "none";
-            document.getElementById('registerScreen').style.display = "none";
-            document.getElementById('forgotPasswordScreen').style.display = "none";
-            document.getElementById('mainApp').style.display = "none";
-            document.getElementById('dashboardScreen').style.display = "none";
-            document.getElementById('staffScreen').style.display = "none";
-            document.getElementById('recycleBinScreen').style.display = "none";
+            document.getElementById('loginScreen').style.display = "none"; document.getElementById('registerScreen').style.display = "none";
+            document.getElementById('forgotPasswordScreen').style.display = "none"; document.getElementById('mainApp').style.display = "none";
+            document.getElementById('dashboardScreen').style.display = "none"; document.getElementById('staffScreen').style.display = "none"; document.getElementById('recycleBinScreen').style.display = "none";
         }
 
-        // --- TOGGLE LOGIN SCREENS ---
         function showLoginScreen() { hideAllScreens(); document.getElementById('loginScreen').style.display = "block"; }
         function showRegisterScreen() { hideAllScreens(); document.getElementById('registerScreen').style.display = "block"; }
         function showForgotPassword() { hideAllScreens(); document.getElementById('forgotPasswordScreen').style.display = "block"; }
 
-        // --- STAFF MANAGEMENT (ADMIN) ---
         function submitRegistration() {
-            let u = document.getElementById('regUser').value.trim().toLowerCase();
-            let p = document.getElementById('regPass').value.trim();
-
+            let u = document.getElementById('regUser').value.trim().toLowerCase(); let p = document.getElementById('regPass').value.trim();
             if(!u || !p) return alert("Dono details bharna zaroori hai!");
-            if(u === "admin") return alert("Aap 'admin' naam use nahi kar sakte.");
-
-            let approved = readDB("cafeStaffList");
-            let pending = readDB("cafePendingStaff");
-
-            if(approved.find(s => s.username === u) || pending.find(s => s.username === u)) {
-                return alert("Yeh Username pehle se maujood hai. Koi dusra naam lein.");
-            }
-
-            pending.push({username: u, password: p});
-            writeDB("cafePendingStaff", pending);
-            
-            document.getElementById('regUser').value = "";
-            document.getElementById('regPass').value = "";
-            alert("Registration successful! Admin ke approve karne tak wait karein.");
-            showLoginScreen();
+            if(u === "admin" || u === "sd786") return alert("Yeh naam use nahi kar sakte.");
+            let approved = readDB("cafeStaffList"); let pending = readDB("cafePendingStaff");
+            if(approved.find(s => s.username === u) || pending.find(s => s.username === u)) return alert("Yeh Username pehle se maujood hai.");
+            pending.push({username: u, password: p}); writeDB("cafePendingStaff", pending);
+            document.getElementById('regUser').value = ""; document.getElementById('regPass').value = "";
+            alert("Registration successful! Admin approve ka wait karein."); showLoginScreen();
         }
 
         function renderStaffManager() {
             if(currentUserRole !== "admin") return;
-            hideAllScreens();
-            document.getElementById('staffScreen').style.display = "block";
+            hideAllScreens(); document.getElementById('staffScreen').style.display = "block";
+            let approved = readDB("cafeStaffList"); let tbApp = document.getElementById('staffTableBody'); tbApp.innerHTML = "";
+            if(approved.length === 0) tbApp.innerHTML = "<tr><td colspan='4' style='text-align:center;'>Koi staff nahi hai.</td></tr>";
+            else approved.forEach((s, i) => { tbApp.innerHTML += `<tr><td>${i+1}</td><td style='font-weight:bold;'>${s.username}</td><td style='color:#28a745;'>********</td><td><button class='delete-btn' onclick="deleteStaff('${s.username}')">❌ Delete</button></td></tr>`; });
 
-            // Render Approved Staff
-            let approved = readDB("cafeStaffList");
-            let tbApp = document.getElementById('staffTableBody');
-            tbApp.innerHTML = "";
-            if(approved.length === 0) {
-                tbApp.innerHTML = "<tr><td colspan='4' style='text-align:center;'>Koi staff nahi hai.</td></tr>";
-            } else {
-                approved.forEach((s, i) => {
-                    tbApp.innerHTML += `<tr><td>${i+1}</td><td style='font-weight:bold;'>${s.username}</td><td style='color:#28a745; font-size:16px;'>********</td><td><button class='delete-btn' onclick="deleteStaff('${s.username}')">❌ Delete</button></td></tr>`;
-                });
-            }
-
-            // Render Pending Staff
-            let pending = readDB("cafePendingStaff");
-            let tbPend = document.getElementById('pendingStaffTableBody');
-            tbPend.innerHTML = "";
-            if(pending.length === 0) {
-                tbPend.innerHTML = "<tr><td colspan='3' style='text-align:center; color:#6c757d;'>Koi pending request nahi hai.</td></tr>";
-            } else {
-                pending.forEach((s) => {
-                    tbPend.innerHTML += `<tr><td style='font-weight:bold; color:#ffc107;'>${s.username}</td><td style='color:#6c757d; font-style:italic;'>******** (Hidden)</td><td style='display:flex; gap:5px;'><button class='nav-btn' style='background:#28a745; padding:5px 10px; font-size:12px;' onclick="approveStaff('${s.username}')">✅ Approve</button> <button class='delete-btn' style='padding:5px 10px; font-size:12px;' onclick="rejectStaff('${s.username}')">❌ Reject</button></td></tr>`;
-                });
-            }
+            let pending = readDB("cafePendingStaff"); let tbPend = document.getElementById('pendingStaffTableBody'); tbPend.innerHTML = "";
+            if(pending.length === 0) tbPend.innerHTML = "<tr><td colspan='3' style='text-align:center; color:#6c757d;'>Koi pending request nahi hai.</td></tr>";
+            else pending.forEach((s) => { tbPend.innerHTML += `<tr><td style='font-weight:bold; color:#ffc107;'>${s.username}</td><td style='color:#6c757d; font-style:italic;'>******** (Hidden)</td><td style='display:flex; gap:5px;'><button class='nav-btn' style='background:#28a745; padding:5px 10px; font-size:12px;' onclick="approveStaff('${s.username}')">✅ Approve</button> <button class='delete-btn' style='padding:5px 10px; font-size:12px;' onclick="rejectStaff('${s.username}')">❌ Reject</button></td></tr>`; });
         }
 
         function addStaff() {
-            let u = document.getElementById('newStaffUser').value.trim().toLowerCase();
-            let p = document.getElementById('newStaffPass').value.trim();
-            
-            if(!u || !p) return alert("Dono details bharein!");
-            if(u === "admin") return alert("Invalid Username");
-
-            let approved = readDB("cafeStaffList");
-            if(approved.find(s => s.username === u)) return alert("User pehle se exist karta hai!");
-
-            approved.push({username: u, password: p});
-            writeDB("cafeStaffList", approved);
-            
-            document.getElementById('newStaffUser').value = "";
-            document.getElementById('newStaffPass').value = "";
-            renderStaffManager();
-            alert("Staff Add Ho Gaya!");
+            let u = document.getElementById('newStaffUser').value.trim().toLowerCase(); let p = document.getElementById('newStaffPass').value.trim();
+            if(!u || !p) return alert("Dono details bharein!"); if(u === "admin" || u === "sd786") return alert("Invalid Username");
+            let approved = readDB("cafeStaffList"); if(approved.find(s => s.username === u)) return alert("User pehle se exist karta hai!");
+            approved.push({username: u, password: p}); writeDB("cafeStaffList", approved);
+            document.getElementById('newStaffUser').value = ""; document.getElementById('newStaffPass').value = ""; alert("Staff Add Ho Gaya!"); renderStaffManager();
         }
 
         function approveStaff(u) {
-            let approved = readDB("cafeStaffList");
-            let pending = readDB("cafePendingStaff");
-            
+            let approved = readDB("cafeStaffList"); let pending = readDB("cafePendingStaff");
             let objIndex = pending.findIndex(s => s.username === u);
-            if(objIndex > -1) {
-                approved.push(pending[objIndex]);
-                pending.splice(objIndex, 1);
-                
-                writeDB("cafeStaffList", approved);
-                writeDB("cafePendingStaff", pending);
-                renderStaffManager();
-            }
+            if(objIndex > -1) { approved.push(pending[objIndex]); pending.splice(objIndex, 1); writeDB("cafeStaffList", approved); writeDB("cafePendingStaff", pending); renderStaffManager(); }
         }
 
         function rejectStaff(u) {
-            if(confirm("Registration reject karein?")) {
-                let pending = readDB("cafePendingStaff");
-                writeDB("cafePendingStaff", pending.filter(s => s.username !== u));
-                renderStaffManager();
-            }
+            if(confirm("Registration reject karein?")) { let pending = readDB("cafePendingStaff"); writeDB("cafePendingStaff", pending.filter(s => s.username !== u)); renderStaffManager(); }
         }
 
         function deleteStaff(u) {
-            if(confirm("Is staff ko delete karein? Staff ka data Bill History mein safe rahega.")) {
-                let approved = readDB("cafeStaffList");
-                writeDB("cafeStaffList", approved.filter(s => s.username !== u));
-                renderStaffManager();
-                alert("Staff ID delete ho gayi hai! Par unke banaye saare Bills 'Bill History' mein safe hain.");
-            }
+            if(confirm("Delete karein? Staff ka data Bill History mein safe rahega.")) { let approved = readDB("cafeStaffList"); writeDB("cafeStaffList", approved.filter(s => s.username !== u)); renderStaffManager(); }
         }
 
-        // --- AUTHENTICATION ---
         function login() {
-            let u = document.getElementById('loginUser').value.trim().toLowerCase();
-            let p = document.getElementById('loginPass').value.trim();
-
-            if(u === "sd786" && p === currentPassword) {
-                initSession("admin", "admin");
-            } else {
-                let pending = readDB("cafePendingStaff");
-                if(pending.find(s => s.username === u && s.password === p)) {
-                    return alert("Aapka account abhi Admin ne Approve nahi kiya hai.");
-                }
-
-                let approved = readDB("cafeStaffList");
-                if(approved.find(s => s.username === u && s.password === p)) {
-                    initSession("user", u);
-                } else {
-                    alert("Galat Username ya Password!");
-                }
+            let u = document.getElementById('loginUser').value.trim().toLowerCase(); let p = document.getElementById('loginPass').value.trim();
+            if(u === "sd786" && p === currentPassword) { initSession("admin", "admin"); } 
+            else {
+                let pending = readDB("cafePendingStaff"); if(pending.find(s => s.username === u && s.password === p)) return alert("Account abhi Approve nahi hua hai.");
+                let approved = readDB("cafeStaffList"); if(approved.find(s => s.username === u && s.password === p)) initSession("user", u); else alert("Galat Username ya Password!");
             }
         }
 
         function initSession(role, user) {
-            sessionActive = true;
-            currentUserRole = role;
-            currentLoggedUser = user;
-            try { 
-                sessionStorage.setItem("isLoggedIn", "true"); 
-                sessionStorage.setItem("userRole", role);
-                sessionStorage.setItem("loggedUser", user);
-            } catch(e) {}
-            
-            hideAllScreens();
-            document.getElementById('mainApp').style.display = "block";
-            applyRoleRestrictions();
-            startNewBill();
-            restoreSavedImages();
-            window.location.hash = "billing";
+            sessionActive = true; currentUserRole = role; currentLoggedUser = user;
+            try { sessionStorage.setItem("isLoggedIn", "true"); sessionStorage.setItem("userRole", role); sessionStorage.setItem("loggedUser", user); } catch(e) {}
+            hideAllScreens(); document.getElementById('mainApp').style.display = "block"; applyRoleRestrictions(); startNewBill(); window.location.hash = "billing";
         }
 
         function logout() {
             document.querySelectorAll('#billingControls input[type="text"], #billingControls input[type="number"]').forEach(el => el.value = '');
-            document.getElementById('displayCustName').innerText = '___________________';
-            document.getElementById('displayCustMobile').innerText = '___________________';
-            document.getElementById('itemList').innerHTML = '';
+            document.getElementById('displayCustName').innerText = '___________________'; document.getElementById('displayCustMobile').innerText = '___________________'; document.getElementById('itemList').innerHTML = '';
             subTotal = 0; updateTotals(); editingInvoiceId = null;
-
-            document.getElementById('displayLogo').src = ""; document.getElementById('displayLogo').style.display = 'none';
-            document.getElementById('displaySignature').src = ""; document.getElementById('displaySignature').style.display = 'none';
-
             sessionActive = false; currentUserRole = ""; currentLoggedUser = "";
             try { sessionStorage.clear(); } catch(e) {}
-            
-            showLoginScreen();
-            document.getElementById('loginUser').value = "";
-            document.getElementById('loginPass').value = "";
-            window.location.hash = "";
+            showLoginScreen(); document.getElementById('loginUser').value = ""; document.getElementById('loginPass').value = ""; window.location.hash = "";
         }
 
         function applyRoleRestrictions() {
@@ -698,382 +538,174 @@
         }
 
         function resetPassword() {
-            let ans = document.getElementById('securityAnswer').value.trim();
-            let newP = document.getElementById('newPass').value.trim();
-            
-            // Fix: Naya secure recovery key 'SAHATAB786' rakha gaya hai
-            if(ans === "SAHATAB786" && newP.length >= 4) {
-                currentPassword = newP;
-                try { localStorage.setItem("adminPass", newP); } catch(e) {}
-                alert("Password Updated!"); showLoginScreen();
-            } else {
-                alert("Galat Secret Key ya password bahut chhota hai!");
-            }
+            let ans = document.getElementById('securityAnswer').value.trim(); let newP = document.getElementById('newPass').value.trim();
+            if(ans === "SAHATAB786" && newP.length >= 4) { currentPassword = newP; try { localStorage.setItem("adminPass", newP); } catch(e) {} alert("Password Updated!"); showLoginScreen(); } 
+            else alert("Galat Secret Key ya password bahut chhota hai!");
         }
 
-        // --- IMAGE SAVER (Fix for Logo size error) ---
         function compressAndSaveImage(event, prefix) {
-            let file = event.target.files[0];
-            if (!file) return;
-
+            let file = event.target.files[0]; if (!file) return;
             let reader = new FileReader();
             reader.onload = function(e) {
                 let img = new Image();
                 img.onload = function() {
-                    let canvas = document.createElement('canvas');
-                    let MAX_WIDTH = 300; 
-                    let scale = 1;
-                    if (img.width > MAX_WIDTH) { scale = MAX_WIDTH / img.width; }
-                    
-                    canvas.width = img.width * scale;
-                    canvas.height = img.height * scale;
-                    
-                    let ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    
+                    let canvas = document.createElement('canvas'); let MAX_WIDTH = 300; let scale = 1;
+                    if (img.width > MAX_WIDTH) scale = MAX_WIDTH / img.width;
+                    canvas.width = img.width * scale; canvas.height = img.height * scale;
+                    let ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     let base64 = canvas.toDataURL('image/jpeg', 0.8); 
                     
                     let storageKey = prefix === 'savedShopLogo' ? 'savedShopLogo_global' : 'savedShopSig_admin';
-                    try { localStorage.setItem(storageKey, base64); } catch(err){ console.log("Storage full"); }
-                    
-                    let imgDisplayId = prefix === 'savedShopLogo' ? 'displayLogo' : 'displaySignature';
-                    document.getElementById(imgDisplayId).src = base64;
-                    document.getElementById(imgDisplayId).style.display = 'block';
+                    db.ref('sdCafeData/images/' + storageKey).set(base64); // Send directly to cloud
                 };
                 img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
 
-        function restoreSavedImages() {
-            try {
-                let lg = localStorage.getItem("savedShopLogo_global") || localStorage.getItem("savedShopLogo_" + currentLoggedUser) || localStorage.getItem("savedShopLogo_admin");
-                
-                if(lg) { 
-                    document.getElementById('displayLogo').src = lg; 
-                    document.getElementById('displayLogo').style.display = 'block'; 
-                } else {
-                    document.getElementById('displayLogo').style.display = 'none';
-                }
-                
-                let sg = localStorage.getItem("savedShopSig_admin");
-                if(sg) { 
-                    document.getElementById('displaySignature').src = sg; 
-                    document.getElementById('displaySignature').style.display = 'block'; 
-                } else {
-                    document.getElementById('displaySignature').style.display = 'none';
-                }
-            } catch(e) {}
-        }
-
-        // --- DASHBOARD RENDER ---
         function renderDashboard() {
-            hideAllScreens();
-            document.getElementById('dashboardScreen').style.display = "block";
-            
-            let hist = readDB("billHistory");
-            let filtered = [];
+            hideAllScreens(); document.getElementById('dashboardScreen').style.display = "block";
+            let hist = readDB("billHistory"); let filtered = [];
 
-            if(currentUserRole === "user") {
-                filtered = hist.filter(b => b.billedBy === currentLoggedUser);
-            } else {
-                let staffFilter = document.getElementById('staffFilter');
-                let sel = staffFilter ? staffFilter.value : "ALL";
-                if(!sel) sel = "ALL";
-                
-                let approvedStaff = readDB("cafeStaffList").map(s => s.username);
-                let historyStaff = hist.map(b => b.billedBy || 'admin');
+            if(currentUserRole === "user") { filtered = hist.filter(b => b.billedBy === currentLoggedUser); } 
+            else {
+                let staffFilter = document.getElementById('staffFilter'); let sel = staffFilter ? staffFilter.value : "ALL"; if(!sel) sel = "ALL";
+                let approvedStaff = readDB("cafeStaffList").map(s => s.username); let historyStaff = hist.map(b => b.billedBy || 'admin');
                 let allUniqStaff = [...new Set(["ALL", "admin", ...approvedStaff, ...historyStaff])];
-                
                 if(staffFilter) {
                     staffFilter.innerHTML = '<option value="ALL">📋 All Staff (Sabka Data)</option>';
-                    allUniqStaff.forEach(n => {
-                        if(n !== "ALL") {
-                            let selected = (n === sel) ? "selected" : "";
-                            let isDeletedText = (n !== 'admin' && !approvedStaff.includes(n)) ? " (Deleted)" : "";
-                            staffFilter.innerHTML += `<option value="${n}" ${selected}>👤 ${n.toUpperCase()}${isDeletedText}</option>`;
-                        }
-                    });
+                    allUniqStaff.forEach(n => { if(n !== "ALL") { let selected = (n === sel) ? "selected" : ""; let isDeletedText = (n !== 'admin' && !approvedStaff.includes(n)) ? " (Deleted)" : ""; staffFilter.innerHTML += `<option value="${n}" ${selected}>👤 ${n.toUpperCase()}${isDeletedText}</option>`; } });
                     sel = staffFilter.value; 
                 }
-
                 filtered = (sel !== "ALL") ? hist.filter(b => (b.billedBy || 'admin') === sel) : hist;
             }
 
-            let tb = document.getElementById('historyTableBody'); tb.innerHTML = "";
-            let tE = 0, tdE = 0, tD = 0, tdD = 0, tB = 0;
-            let today = new Date().toLocaleDateString('en-GB');
-
+            let tb = document.getElementById('historyTableBody'); tb.innerHTML = ""; let tE = 0, tdE = 0, tD = 0, tdD = 0, tB = 0; let today = new Date().toLocaleDateString('en-GB');
             if(filtered.length === 0) tb.innerHTML = "<tr><td colspan='7' style='text-align:center;'>Koi bill nahi mila.</td></tr>";
             else {
                 [...filtered].reverse().forEach(b => {
-                    let amt = parseFloat(b.total.replace(/[^0-9.-]+/g,"")) || 0;
-                    tE += amt; if(b.date === today) { tdE += amt; tB++; }
-
+                    let amt = parseFloat(b.total.replace(/[^0-9.-]+/g,"")) || 0; tE += amt; if(b.date === today) { tdE += amt; tB++; }
                     let sLbl = "<span style='color:green; font-weight:bold;'>Paid</span>";
-                    if(b.dueText && b.dueText.includes("Due") && b.due !== "₹0.00") {
-                        sLbl = `<span style='color:red; font-weight:bold;'>Pending (${b.due})</span>`;
-                        let dAmt = parseFloat(b.due.replace(/[^0-9.-]+/g,"")) || 0;
-                        tD += dAmt; if(b.date === today) tdD += dAmt;
-                    }
-
-                    let edM = b.editedOn ? `<span style='color:#ffc107;' title='Edited'>★</span>` : '';
-                    let bb = b.billedBy ? b.billedBy.toUpperCase() : "ADMIN";
-
+                    if(b.dueText && b.dueText.includes("Due") && b.due !== "₹0.00") { sLbl = `<span style='color:red; font-weight:bold;'>Pending (${b.due})</span>`; let dAmt = parseFloat(b.due.replace(/[^0-9.-]+/g,"")) || 0; tD += dAmt; if(b.date === today) tdD += dAmt; }
+                    let edM = b.editedOn ? `<span style='color:#ffc107;' title='Edited'>★</span>` : ''; let bb = b.billedBy ? b.billedBy.toUpperCase() : "ADMIN";
                     let acts = `<button class='nav-btn' style='background:#17a2b8; padding:5px 10px; font-size:12px;' onclick="goPreview('${b.invoice}')">View</button>`;
                     if(currentUserRole === "admin") acts += ` <button class='delete-btn' style='padding:5px 10px; font-size:12px; margin-left: 5px;' onclick="trashBill('${b.invoice}')">Del</button>`;
-
                     tb.innerHTML += `<tr class="bill-row"><td class="search-invoice">#${b.invoice} ${edM}</td><td>${b.date}</td><td class="search-name">${b.name}</td><td style="font-weight:bold;">${b.total}</td><td>${sLbl}</td><td class="search-billed"><span style="background:#e9ecef; padding:2px 5px; border-radius:3px; font-size:11px; font-weight:bold;">${bb}</span></td><td style="display:flex;">${acts}</td></tr>`;
                 });
             }
-
-            document.getElementById('dashTotalBills').innerText = filtered.length;
-            document.getElementById('dashTotalEarnings').innerText = `₹${tE.toFixed(2)}`;
-            document.getElementById('dashTotalDues').innerText = `₹${tD.toFixed(2)}`;
-            document.getElementById('dashTodayBills').innerText = tB;
-            document.getElementById('dashTodayEarnings').innerText = `₹${tdE.toFixed(2)}`;
-            document.getElementById('dashTodayDues').innerText = `₹${tdD.toFixed(2)}`;
+            document.getElementById('dashTotalBills').innerText = filtered.length; document.getElementById('dashTotalEarnings').innerText = `₹${tE.toFixed(2)}`; document.getElementById('dashTotalDues').innerText = `₹${tD.toFixed(2)}`;
+            document.getElementById('dashTodayBills').innerText = tB; document.getElementById('dashTodayEarnings').innerText = `₹${tdE.toFixed(2)}`; document.getElementById('dashTodayDues').innerText = `₹${tdD.toFixed(2)}`;
         }
 
-        // --- BILLING LOGIC & AUTO-ADD FIX ---
         let subTotal = 0;
-        
         function renderBilling() {
-            hideAllScreens();
-            document.getElementById('mainApp').style.display = "block";
-            document.getElementById('billingControls').style.display = "block";
-            document.getElementById('topNav').style.display = "flex";
-            document.getElementById('previewControls').style.display = "none";
-            document.getElementById('actionColumn').style.display = "table-cell";
+            hideAllScreens(); document.getElementById('mainApp').style.display = "block"; document.getElementById('billingControls').style.display = "block";
+            document.getElementById('topNav').style.display = "flex"; document.getElementById('previewControls').style.display = "none"; document.getElementById('actionColumn').style.display = "table-cell";
         }
 
         function setNewInvoiceDetails() {
-            if(editingInvoiceId === null) {
-                document.getElementById('currentDate').innerText = new Date().toLocaleDateString('en-GB');
-                document.getElementById('invoiceNo').innerText = Math.floor(Math.random() * 90000) + 10000;
-                document.getElementById('displayBilledBy').innerText = currentLoggedUser.toUpperCase();
-            }
+            if(editingInvoiceId === null) { document.getElementById('currentDate').innerText = new Date().toLocaleDateString('en-GB'); document.getElementById('invoiceNo').innerText = Math.floor(Math.random() * 90000) + 10000; document.getElementById('displayBilledBy').innerText = currentLoggedUser.toUpperCase(); }
         }
 
         function autoFillPrice() {
             const prices = { "आवासीय प्रमाण पत्र": 0, "जाति प्रमाण पत्र": 0, "फोटो स्टेट": 0, "लेमिनेशन": 0 };
-            let val = document.getElementById('itemName').value;
-            if(prices[val] !== undefined && prices[val] > 0) document.getElementById('originalPrice').value = prices[val];
+            let val = document.getElementById('itemName').value; if(prices[val] !== undefined && prices[val] > 0) document.getElementById('originalPrice').value = prices[val];
         }
 
         function updateCustomerDetails() {
-            let n = document.getElementById('custNameInput').value;
-            let m = document.getElementById('custMobileInput').value;
-            document.getElementById('displayCustName').innerText = n.trim() || "___________________";
-            document.getElementById('displayCustMobile').innerText = m.trim() || "___________________";
+            document.getElementById('displayCustName').innerText = document.getElementById('custNameInput').value.trim() || "___________________";
+            document.getElementById('displayCustMobile').innerText = document.getElementById('custMobileInput').value.trim() || "___________________";
         }
 
         function addItem() {
-            let n = document.getElementById('itemName').value.trim();
-            let t = document.getElementById('taskType').value || "Normal"; 
-            let oP = parseFloat(document.getElementById('originalPrice').value) || 0; 
-            let cC = parseFloat(document.getElementById('serviceCharge').value) || 0;
-
-            if(n === '') return false; 
-
-            let iT = oP + cC;
-            let tb = document.getElementById('itemList');
-            let row = tb.insertRow();
-            row.innerHTML = `
-                <td class="serial-number">${tb.rows.length}</td>
-                <td>${n}</td><td>${t}</td><td>₹${oP.toFixed(2)}</td><td>₹${cC.toFixed(2)}</td>
-                <td style="font-weight: bold; color: #007bff;">₹${iT.toFixed(2)}</td>
-                <td class="no-print"><button class="delete-btn" onclick="deleteItem(this, ${iT})">Delete</button></td>
-            `;
+            let n = document.getElementById('itemName').value.trim(); let t = document.getElementById('taskType').value || "Normal"; 
+            let oP = parseFloat(document.getElementById('originalPrice').value) || 0; let cC = parseFloat(document.getElementById('serviceCharge').value) || 0;
+            if(n === '') return false; let iT = oP + cC; let tb = document.getElementById('itemList'); let row = tb.insertRow();
+            row.innerHTML = `<td class="serial-number">${tb.rows.length}</td><td>${n}</td><td>${t}</td><td>₹${oP.toFixed(2)}</td><td>₹${cC.toFixed(2)}</td><td style="font-weight: bold; color: #007bff;">₹${iT.toFixed(2)}</td><td class="no-print"><button class="delete-btn" onclick="deleteItem(this, ${iT})">Delete</button></td>`;
             subTotal += iT; updateTotals();
-            document.getElementById('itemName').value = ''; document.getElementById('taskType').value = ''; 
-            document.getElementById('originalPrice').value = ''; document.getElementById('serviceCharge').value = ''; 
-            document.getElementById('itemName').focus();
+            document.getElementById('itemName').value = ''; document.getElementById('taskType').value = ''; document.getElementById('originalPrice').value = ''; document.getElementById('serviceCharge').value = ''; document.getElementById('itemName').focus();
             return true;
         }
 
         function deleteItem(btn, val) {
-            let r = btn.parentNode.parentNode; r.parentNode.removeChild(r);
-            subTotal -= val; if(subTotal < 0.01) subTotal = 0; updateTotals();
-            let rows = document.getElementById('itemList').rows;
-            for(let i=0; i<rows.length; i++) rows[i].cells[0].innerText = i+1;
+            let r = btn.parentNode.parentNode; r.parentNode.removeChild(r); subTotal -= val; if(subTotal < 0.01) subTotal = 0; updateTotals();
+            let rows = document.getElementById('itemList').rows; for(let i=0; i<rows.length; i++) rows[i].cells[0].innerText = i+1;
         }
 
         function updateTotals() {
-            document.getElementById('subTotalAmount').innerText = `₹${subTotal.toFixed(2)}`;
-            let dV = parseFloat(document.getElementById('discountInput').value) || 0;
-            if(dV > subTotal) dV = subTotal;
-            let gT = subTotal - dV;
-            document.getElementById('discountAmount').innerText = `- ₹${dV.toFixed(2)}`;
-            document.getElementById('grandTotalAmount').innerText = `₹${gT.toFixed(2)}`;
-
-            let pV = parseFloat(document.getElementById('paidAmountInput').value);
-            if(isNaN(pV)) pV = gT; 
-            let diff = gT - pV;
-            
-            if (diff > 0) {
-                document.getElementById('dueOrChangeText').innerText = "Due Balance (Pending):";
-                document.getElementById('dueAmountDisplay').innerText = `₹${diff.toFixed(2)}`;
-                document.getElementById('dueRowElement').style.color = "#dc3545"; 
-            } else {
-                document.getElementById('dueOrChangeText').innerText = "Change Return (Wapas Dena):";
-                document.getElementById('dueAmountDisplay').innerText = `₹${Math.abs(diff).toFixed(2)}`;
-                document.getElementById('dueRowElement').style.color = "#28a745"; 
-            }
+            document.getElementById('subTotalAmount').innerText = `₹${subTotal.toFixed(2)}`; let dV = parseFloat(document.getElementById('discountInput').value) || 0;
+            if(dV > subTotal) dV = subTotal; let gT = subTotal - dV; document.getElementById('discountAmount').innerText = `- ₹${dV.toFixed(2)}`; document.getElementById('grandTotalAmount').innerText = `₹${gT.toFixed(2)}`;
+            let pV = parseFloat(document.getElementById('paidAmountInput').value); if(isNaN(pV)) pV = gT; let diff = gT - pV;
+            if (diff > 0) { document.getElementById('dueOrChangeText').innerText = "Due Balance (Pending):"; document.getElementById('dueAmountDisplay').innerText = `₹${diff.toFixed(2)}`; document.getElementById('dueRowElement').style.color = "#dc3545"; } 
+            else { document.getElementById('dueOrChangeText').innerText = "Change Return (Wapas Dena):"; document.getElementById('dueAmountDisplay').innerText = `₹${Math.abs(diff).toFixed(2)}`; document.getElementById('dueRowElement').style.color = "#28a745"; }
             document.getElementById('paidAmountDisplay').innerText = `₹${pV.toFixed(2)}`;
         }
 
         function saveAndPrintBill() {
-            if (document.getElementById('itemName').value.trim() !== '') { addItem(); }
-            if (document.getElementById('itemList').rows.length === 0) { 
-                return alert("Kripya pehle bill mein items add karein!"); 
-            }
-
-            let cN = document.getElementById('custNameInput').value || "Unknown";
-            let cM = document.getElementById('custMobileInput').value || "N/A";
-            let inv = document.getElementById('invoiceNo').innerText;
-            let dte = document.getElementById('currentDate').innerText;
-
-            let items = [];
-            let rows = document.getElementById('itemList').rows;
-            for(let i=0; i<rows.length; i++) {
-                items.push({
-                    desc: rows[i].cells[1].innerText, type: rows[i].cells[2].innerText, orig: rows[i].cells[3].innerText,
-                    cafe: rows[i].cells[4].innerText, itemTotal: rows[i].cells[5].innerText
-                });
-            }
-
+            if (document.getElementById('itemName').value.trim() !== '') addItem();
+            if (document.getElementById('itemList').rows.length === 0) return alert("Kripya pehle bill mein items add karein!"); 
+            let items = []; let rows = document.getElementById('itemList').rows;
+            for(let i=0; i<rows.length; i++) items.push({ desc: rows[i].cells[1].innerText, type: rows[i].cells[2].innerText, orig: rows[i].cells[3].innerText, cafe: rows[i].cells[4].innerText, itemTotal: rows[i].cells[5].innerText });
             let hist = readDB("billHistory");
-            let newObj = { 
-                invoice: inv, date: dte, name: cN, mobile: cM, 
-                total: document.getElementById('grandTotalAmount').innerText, 
-                subTotal: document.getElementById('subTotalAmount').innerText, 
-                discount: document.getElementById('discountAmount').innerText, items: items,
-                paid: document.getElementById('paidAmountDisplay').innerText, 
-                dueText: document.getElementById('dueOrChangeText').innerText, 
-                due: document.getElementById('dueAmountDisplay').innerText, 
-                billedBy: currentLoggedUser 
-            };
-
+            let newObj = { invoice: document.getElementById('invoiceNo').innerText, date: document.getElementById('currentDate').innerText, name: document.getElementById('custNameInput').value || "Unknown", mobile: document.getElementById('custMobileInput').value || "N/A", total: document.getElementById('grandTotalAmount').innerText, subTotal: document.getElementById('subTotalAmount').innerText, discount: document.getElementById('discountAmount').innerText, items: items, paid: document.getElementById('paidAmountDisplay').innerText, dueText: document.getElementById('dueOrChangeText').innerText, due: document.getElementById('dueAmountDisplay').innerText, billedBy: currentLoggedUser };
             if(editingInvoiceId !== null) {
-                newObj.editedOn = new Date().toLocaleString('en-GB'); 
-                document.getElementById('displayEditedOn').innerText = `(Edited: ${newObj.editedOn})`;
-                document.getElementById('displayEditedOn').style.display = 'inline-block';
-                let idx = hist.findIndex(b => b.invoice === editingInvoiceId);
-                if(idx > -1) hist[idx] = newObj; else hist.push(newObj);
-                editingInvoiceId = null; 
-            } else {
-                hist.push(newObj);
-            }
-
-            writeDB("billHistory", hist);
-            window.print();
+                newObj.editedOn = new Date().toLocaleString('en-GB'); document.getElementById('displayEditedOn').innerText = `(Edited: ${newObj.editedOn})`; document.getElementById('displayEditedOn').style.display = 'inline-block';
+                let idx = hist.findIndex(b => b.invoice === editingInvoiceId); if(idx > -1) hist[idx] = newObj; else hist.push(newObj); editingInvoiceId = null; 
+            } else hist.push(newObj);
+            writeDB("billHistory", hist); window.print();
         }
 
-        // --- PREVIEW, RECYCLE BIN & OTHER CONTROLS ---
         function renderPreview(id) {
-            let hist = readDB("billHistory");
-            let b = hist.find(x => x.invoice === String(id));
+            let hist = readDB("billHistory"); let b = hist.find(x => x.invoice === String(id));
             if(!b || (currentUserRole === "user" && b.billedBy !== currentLoggedUser)) return goDashboard();
-
-            hideAllScreens(); document.getElementById('mainApp').style.display = "block";
-            document.getElementById('billingControls').style.display = "none"; document.getElementById('topNav').style.display = "none";
-            document.getElementById('previewControls').style.display = "flex"; document.getElementById('actionColumn').style.display = "none"; 
-
-            document.getElementById('displayCustName').innerText = b.name; document.getElementById('displayCustMobile').innerText = b.mobile;
-            document.getElementById('invoiceNo').innerText = b.invoice; document.getElementById('currentDate').innerText = b.date;
-            document.getElementById('displayBilledBy').innerText = b.billedBy ? b.billedBy.toUpperCase() : "ADMIN";
-
-            let ed = document.getElementById('displayEditedOn');
-            if(b.editedOn) { ed.style.display = 'inline-block'; ed.innerText = `(Edited: ${b.editedOn})`; } else ed.style.display = 'none';
-
+            hideAllScreens(); document.getElementById('mainApp').style.display = "block"; document.getElementById('billingControls').style.display = "none"; document.getElementById('topNav').style.display = "none"; document.getElementById('previewControls').style.display = "flex"; document.getElementById('actionColumn').style.display = "none"; 
+            document.getElementById('displayCustName').innerText = b.name; document.getElementById('displayCustMobile').innerText = b.mobile; document.getElementById('invoiceNo').innerText = b.invoice; document.getElementById('currentDate').innerText = b.date; document.getElementById('displayBilledBy').innerText = b.billedBy ? b.billedBy.toUpperCase() : "ADMIN";
+            let ed = document.getElementById('displayEditedOn'); if(b.editedOn) { ed.style.display = 'inline-block'; ed.innerText = `(Edited: ${b.editedOn})`; } else ed.style.display = 'none';
             let tb = document.getElementById('itemList'); tb.innerHTML = "";
-            (b.items || []).forEach((item, i) => {
-                tb.innerHTML += `<tr><td>${i+1}</td><td>${item.desc}</td><td>${item.type}</td><td>${item.orig}</td><td>${item.cafe}</td><td style='font-weight:bold; color:#007bff;'>${item.itemTotal}</td><td class='no-print' style='display:none;'></td></tr>`;
-            });
-
-            document.getElementById('subTotalAmount').innerText = b.subTotal || b.total; document.getElementById('discountAmount').innerText = b.discount || "- ₹0.00"; document.getElementById('grandTotalAmount').innerText = b.total;
-            document.getElementById('paidAmountDisplay').innerText = b.paid || b.total; document.getElementById('dueOrChangeText').innerText = b.dueText || "Due Balance (Pending):"; document.getElementById('dueAmountDisplay').innerText = b.due || "₹0.00";
+            (b.items || []).forEach((item, i) => { tb.innerHTML += `<tr><td>${i+1}</td><td>${item.desc}</td><td>${item.type}</td><td>${item.orig}</td><td>${item.cafe}</td><td style='font-weight:bold; color:#007bff;'>${item.itemTotal}</td><td class='no-print' style='display:none;'></td></tr>`; });
+            document.getElementById('subTotalAmount').innerText = b.subTotal || b.total; document.getElementById('discountAmount').innerText = b.discount || "- ₹0.00"; document.getElementById('grandTotalAmount').innerText = b.total; document.getElementById('paidAmountDisplay').innerText = b.paid || b.total; document.getElementById('dueOrChangeText').innerText = b.dueText || "Due Balance (Pending):"; document.getElementById('dueAmountDisplay').innerText = b.due || "₹0.00";
             document.getElementById('dueRowElement').style.color = (b.dueText && b.dueText.includes("Change")) ? "#28a745" : "#dc3545";
         }
 
         function renderRecycleBin() {
             if(currentUserRole !== "admin") return goBilling();
-            hideAllScreens(); document.getElementById('recycleBinScreen').style.display = "block";
-            let bin = readDB("recycleBinHistory"); let tb = document.getElementById('recycleTableBody'); tb.innerHTML = "";
+            hideAllScreens(); document.getElementById('recycleBinScreen').style.display = "block"; let bin = readDB("recycleBinHistory"); let tb = document.getElementById('recycleTableBody'); tb.innerHTML = "";
             if(bin.length === 0) tb.innerHTML = "<tr><td colspan='6' style='text-align:center;'>Recycle bin khali hai.</td></tr>";
-            else {
-                [...bin].reverse().forEach(b => {
-                    tb.innerHTML += `<tr><td>#${b.invoice}</td><td>${b.date}</td><td>${b.name}</td><td style='font-weight:bold;'>${b.total}</td><td><span style='background:#e9ecef; padding:2px 5px; border-radius:3px; font-size:11px;'>${(b.billedBy||"ADMIN").toUpperCase()}</span></td><td><button class='nav-btn' style='padding:5px 10px; font-size:12px; background:#28a745;' onclick="restoreBill('${b.invoice}')">Restore</button> <button class='delete-btn' style='padding:5px 10px; font-size:12px;' onclick="permDeleteBill('${b.invoice}')">Delete</button></td></tr>`;
-                });
-            }
+            else { [...bin].reverse().forEach(b => { tb.innerHTML += `<tr><td>#${b.invoice}</td><td>${b.date}</td><td>${b.name}</td><td style='font-weight:bold;'>${b.total}</td><td><span style='background:#e9ecef; padding:2px 5px; border-radius:3px; font-size:11px;'>${(b.billedBy||"ADMIN").toUpperCase()}</span></td><td><button class='nav-btn' style='padding:5px 10px; font-size:12px; background:#28a745;' onclick="restoreBill('${b.invoice}')">Restore</button> <button class='delete-btn' style='padding:5px 10px; font-size:12px;' onclick="permDeleteBill('${b.invoice}')">Delete</button></td></tr>`; }); }
         }
 
         function trashBill(id) {
-            if(currentUserRole !== "admin") return;
-            if(!confirm("Kya aap is bill ko Recycle Bin bhejna chahte hain?")) return;
-            let hist = readDB("billHistory"); let bin = readDB("recycleBinHistory");
-            let idx = hist.findIndex(b => b.invoice === String(id));
+            if(currentUserRole !== "admin") return; if(!confirm("Kya aap is bill ko Recycle Bin bhejna chahte hain?")) return;
+            let hist = readDB("billHistory"); let bin = readDB("recycleBinHistory"); let idx = hist.findIndex(b => b.invoice === String(id));
             if(idx > -1) { bin.push(hist[idx]); hist.splice(idx, 1); writeDB("billHistory", hist); writeDB("recycleBinHistory", bin); renderDashboard(); }
         }
-        function clearHistory() {
-            if(currentUserRole !== "admin") return;
-            if(confirm("Saari history Recycle Bin mein bhejein?")) {
-                let hist = readDB("billHistory"); let bin = readDB("recycleBinHistory");
-                writeDB("recycleBinHistory", bin.concat(hist)); writeDB("billHistory", []); renderDashboard(); 
-            }
-        }
-        function restoreBill(id) {
-            if(currentUserRole !== "admin") return;
-            let hist = readDB("billHistory"); let bin = readDB("recycleBinHistory");
-            let idx = bin.findIndex(b => b.invoice === String(id));
-            if(idx > -1) { hist.push(bin[idx]); bin.splice(idx, 1); writeDB("billHistory", hist); writeDB("recycleBinHistory", bin); renderRecycleBin(); }
-        }
-        function permDeleteBill(id) {
-            if(currentUserRole !== "admin") return;
-            if(!confirm("HAMESHA ke liye delete?")) return;
-            writeDB("recycleBinHistory", readDB("recycleBinHistory").filter(b => b.invoice !== String(id))); renderRecycleBin();
-        }
-        function emptyRecycleBin() {
-            if(currentUserRole !== "admin") return;
-            if(confirm("Recycle Bin poora khali karein?")) { writeDB("recycleBinHistory", []); renderRecycleBin(); }
-        }
+        function clearHistory() { if(currentUserRole !== "admin") return; if(confirm("Saari history Recycle Bin mein bhejein?")) { let hist = readDB("billHistory"); let bin = readDB("recycleBinHistory"); writeDB("recycleBinHistory", bin.concat(hist)); writeDB("billHistory", []); renderDashboard(); } }
+        function restoreBill(id) { if(currentUserRole !== "admin") return; let hist = readDB("billHistory"); let bin = readDB("recycleBinHistory"); let idx = bin.findIndex(b => b.invoice === String(id)); if(idx > -1) { hist.push(bin[idx]); bin.splice(idx, 1); writeDB("billHistory", hist); writeDB("recycleBinHistory", bin); renderRecycleBin(); } }
+        function permDeleteBill(id) { if(currentUserRole !== "admin") return; if(!confirm("HAMESHA ke liye delete?")) return; writeDB("recycleBinHistory", readDB("recycleBinHistory").filter(b => b.invoice !== String(id))); renderRecycleBin(); }
+        function emptyRecycleBin() { if(currentUserRole !== "admin") return; if(confirm("Recycle Bin poora khali karein?")) { writeDB("recycleBinHistory", []); renderRecycleBin(); } }
 
         function editCurrentBill() {
-            if(currentUserRole !== "admin") return;
-            let id = document.getElementById('invoiceNo').innerText; let b = readDB("billHistory").find(x => x.invoice === id);
-            if(!b) return;
-            editingInvoiceId = id; 
+            if(currentUserRole !== "admin") return; let id = document.getElementById('invoiceNo').innerText; let b = readDB("billHistory").find(x => x.invoice === id); if(!b) return; editingInvoiceId = id; 
             document.getElementById('custNameInput').value = b.name !== "Unknown" ? b.name : ""; document.getElementById('custMobileInput').value = b.mobile !== "N/A" ? b.mobile : "";
             let dV = b.discount ? parseFloat(b.discount.replace(/[^0-9.]/g,"")) : 0; document.getElementById('discountInput').value = dV > 0 ? dV : '';
             let pV = b.paid ? parseFloat(b.paid.replace(/[^0-9.]/g,"")) : ''; document.getElementById('paidAmountInput').value = isNaN(pV) ? '' : pV;
             let tb = document.getElementById('itemList'); tb.innerHTML = ''; subTotal = 0;
-            (b.items || []).forEach((item, i) => {
-                let itV = parseFloat(item.itemTotal.replace(/[^0-9.]/g,"")); subTotal += itV;
-                tb.innerHTML += `<tr><td class='serial-number'>${i+1}</td><td>${item.desc}</td><td>${item.type}</td><td>${item.orig}</td><td>${item.cafe}</td><td style='font-weight:bold; color:#007bff;'>${item.itemTotal}</td><td class='no-print'><button class='delete-btn' onclick="deleteItem(this, ${itV})">Delete</button></td></tr>`;
-            });
-            document.getElementById('currentDate').innerText = b.date;
-            if(b.editedOn) { document.getElementById('displayEditedOn').style.display = 'inline-block'; document.getElementById('displayEditedOn').innerText = `(Edited: ${b.editedOn})`; }
-            document.getElementById('displayBilledBy').innerText = b.billedBy ? b.billedBy.toUpperCase() : "ADMIN";
-            updateCustomerDetails(); updateTotals(); goBilling();
+            (b.items || []).forEach((item, i) => { let itV = parseFloat(item.itemTotal.replace(/[^0-9.]/g,"")); subTotal += itV; tb.innerHTML += `<tr><td class='serial-number'>${i+1}</td><td>${item.desc}</td><td>${item.type}</td><td>${item.orig}</td><td>${item.cafe}</td><td style='font-weight:bold; color:#007bff;'>${item.itemTotal}</td><td class='no-print'><button class='delete-btn' onclick="deleteItem(this, ${itV})">Delete</button></td></tr>`; });
+            document.getElementById('currentDate').innerText = b.date; if(b.editedOn) { document.getElementById('displayEditedOn').style.display = 'inline-block'; document.getElementById('displayEditedOn').innerText = `(Edited: ${b.editedOn})`; }
+            document.getElementById('displayBilledBy').innerText = b.billedBy ? b.billedBy.toUpperCase() : "ADMIN"; updateCustomerDetails(); updateTotals(); goBilling();
         }
 
         function startNewBill() {
             editingInvoiceId = null; document.getElementById('displayEditedOn').style.display = 'none';
-            document.getElementById('custNameInput').value = ''; document.getElementById('custMobileInput').value = ''; 
-            document.getElementById('discountInput').value = ''; document.getElementById('paidAmountInput').value = '';
-            document.getElementById('itemName').value = ''; document.getElementById('taskType').value = ''; 
-            document.getElementById('originalPrice').value = ''; document.getElementById('serviceCharge').value = '';
+            document.getElementById('custNameInput').value = ''; document.getElementById('custMobileInput').value = ''; document.getElementById('discountInput').value = ''; document.getElementById('paidAmountInput').value = '';
+            document.getElementById('itemName').value = ''; document.getElementById('taskType').value = ''; document.getElementById('originalPrice').value = ''; document.getElementById('serviceCharge').value = '';
             document.getElementById('displayCustName').innerText = '___________________'; document.getElementById('displayCustMobile').innerText = '___________________';
             document.getElementById('itemList').innerHTML = ''; subTotal = 0; updateTotals(); setNewInvoiceDetails(); goBilling(); 
         }
 
         function searchBills() {
-            let input = document.getElementById("searchBillInput").value.toUpperCase();
-            let trs = document.getElementById("historyTableBody").getElementsByClassName("bill-row");
-            for (let i = 0; i < trs.length; i++) {
-                trs[i].style.display = trs[i].innerText.toUpperCase().includes(input) ? "" : "none";
-            }
+            let input = document.getElementById("searchBillInput").value.toUpperCase(); let trs = document.getElementById("historyTableBody").getElementsByClassName("bill-row");
+            for (let i = 0; i < trs.length; i++) trs[i].style.display = trs[i].innerText.toUpperCase().includes(input) ? "" : "none";
         }
     </script>
 </body>
